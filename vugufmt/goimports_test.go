@@ -28,7 +28,7 @@ func TestGoImportsNoError(t *testing.T) {
 		testFile, err := ioutil.ReadFile(absPath)
 		testFileString := string(testFile)
 		assert.Nil(t, err, f)
-		// run gofmt on it
+		// run goimports on it
 		out, err := runGoImports([]byte(testFileString))
 		assert.Nil(t, err, f)
 		// make sure nothing changed!
@@ -48,7 +48,7 @@ func TestGoImportsNoError(t *testing.T) {
 // an error, and is reporting it in the expected format.
 func TestGoImportsError(t *testing.T) {
 	testCode := "package yeah\n\nvar hey := woo\n"
-	// run gofmt on it
+	// run goimports on it
 	_, err := runGoImports([]byte(testCode))
 	assert.NotNil(t, err)
 	assert.Equal(t, 3, err.Line)
