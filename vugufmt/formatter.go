@@ -108,7 +108,7 @@ loop:
 				if len(ts) == 0 {
 					return nil
 				}
-				tagNames := make([]string, len(ts), len(ts))
+				tagNames := make([]string, len(ts))
 				for i, t := range ts {
 					tagNames[i] = t.Data
 				}
@@ -134,7 +134,13 @@ loop:
 				indentLevel--
 			}
 			for i := 0; i < indentLevel; i++ {
-				out.Write([]byte{'\t'})
+				if _, err := out.Write([]byte{'\t'}); err != nil {
+					return &FmtError{
+						Msg:    err.Error(),
+						Line:   curTok.Line,
+						Column: curTok.Column,
+					}
+				}
 			}
 		}
 		previousLineBreak = false
@@ -145,7 +151,13 @@ loop:
 		switch curTokType {
 		case htmlx.StartTagToken:
 			ts.push(&curTok)
-			out.Write(raw)
+			if _, err := out.Write(raw); err != nil {
+				return &FmtError{
+					Msg:    err.Error(),
+					Line:   curTok.Line,
+					Column: curTok.Column,
+				}
+			}
 		case htmlx.EndTagToken:
 			lastPushed := ts.pop()
 			if lastPushed.DataAtom != curTok.DataAtom {
@@ -155,21 +167,39 @@ loop:
 					Column: curTok.Column,
 				}
 			}
-			out.Write(raw)
+			if _, err := out.Write(raw); err != nil {
+				return &FmtError{
+					Msg:    err.Error(),
+					Line:   curTok.Line,
+					Column: curTok.Column,
+				}
+			}
 		case htmlx.TextToken:
 			parent := ts.top()
 
 			if breakCount := breaks(raws); breakCount > 0 {
 				// This is a break between tags.
 				for i := 0; i < breakCount; i++ {
-					out.Write([]byte{'\n'})
+					if _, err := out.Write([]byte{'\n'}); err != nil {
+						return &FmtError{
+							Msg:    err.Error(),
+							Line:   curTok.Line,
+							Column: curTok.Column,
+						}
+					}
 				}
 				previousLineBreak = true
 				continue loop
 			}
 
 			if parent == nil {
-				out.Write(raw)
+				if _, err := out.Write(raw); err != nil {
+					return &FmtError{
+						Msg:    err.Error(),
+						Line:   curTok.Line,
+						Column: curTok.Column,
+					}
+				}
 				//return fmt.Errorf("%s:%v:%v: orphaned text node",
 				//	filename, curTok.Line, curTok.Column)
 			} else if parent.DataAtom == atom.Script {
@@ -189,7 +219,14 @@ loop:
 					err.FileName = filename
 					return err
 				}
-				out.Write(fmtr)
+
+				if _, err := out.Write(fmtr); err != nil {
+					return &FmtError{
+						Msg:    err.Error(),
+						Line:   curTok.Line,
+						Column: curTok.Column,
+					}
+				}
 
 			} else if parent.DataAtom == atom.Style {
 				// hey we are in a CSS text node
@@ -201,13 +238,32 @@ loop:
 						Column: curTok.Column,
 					}
 				}
-				out.Write(fmtr)
+				if _, err := out.Write(fmtr); err != nil {
+					return &FmtError{
+						Msg:    err.Error(),
+						Line:   curTok.Line,
+						Column: curTok.Column,
+					}
+				}
+
 			} else {
 				// we are in some other text node we don't care about.
-				out.Write(raw)
+				if _, err := out.Write(raw); err != nil {
+					return &FmtError{
+						Msg:    err.Error(),
+						Line:   curTok.Line,
+						Column: curTok.Column,
+					}
+				}
 			}
 		default:
-			out.Write(raw)
+			if _, err := out.Write(raw); err != nil {
+				return &FmtError{
+					Msg:    err.Error(),
+					Line:   curTok.Line,
+					Column: curTok.Column,
+				}
+			}
 		}
 	}
 }
@@ -242,7 +298,12 @@ func (f *Formatter) Diff(filename string, input io.Reader, output io.Writer) (bo
 	if err != nil {
 		return true, fmt.Errorf("computing diff: %s", err)
 	}
-	output.Write([]byte(fmt.Sprintf("diff -u %s %s\n", filepath.ToSlash(filename+".orig"), filepath.ToSlash(filename))))
-	output.Write(data)
+	if _, err = output.Write([]byte(
+		fmt.Sprintf("diff -u %s %s\n", filepath.ToSlash(filename+".orig"), filepath.ToSlash(filename)))); err != nil {
+		return false, err
+	}
+	if _, err = output.Write(data); err != nil {
+		return false, err
+	}
 	return true, nil
 }
